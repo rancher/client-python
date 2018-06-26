@@ -168,7 +168,7 @@ class ApiError(Exception):
     def __init__(self, obj):
         self.error = obj
         try:
-            msg = '{} : {}\n{}'.format(obj.code, obj.message, obj)
+            msg = '{} : {}\n\t{}'.format(obj.code, obj.message, obj)
             super(ApiError, self).__init__(self, msg)
         except:
             super(ApiError, self).__init__(self, 'API Error')
@@ -182,6 +182,8 @@ class Client(object):
     def __init__(self, access_key=None, secret_key=None, url=None, cache=False,
                  cache_time=86400, strict=False, headers=HEADERS, token=None,
                  verify=True, **kw):
+        if verify == 'False':
+            verify = False
         self._headers = HEADERS
         for k, v in headers.iteritems():
             self._headers[k] = v
@@ -574,7 +576,7 @@ class Client(object):
     def wait_success(self, obj, timeout=-1):
         obj = self.wait_transitioning(obj, timeout)
         if obj.transitioning != 'no':
-            raise gdapi.ClientApiError(obj.transitioningMessage)
+            raise ClientApiError(obj.transitioningMessage)
         return obj
 
     def wait_transitioning(self, obj, timeout=-1, sleep=0.01):
@@ -691,6 +693,7 @@ def _from_env(prefix=PREFIX + '_', factory=Client, **kw):
 
     if 'cache' in result:
         result['cache'] = result['cache'] is True or result['cache'] == 'true'
+
     return factory(**result)
 
 
@@ -701,6 +704,7 @@ def _general_args(help=True):
     parser.add_argument('--access-key', dest='_access_key')
     parser.add_argument('--secret-key', dest='_secret_key')
     parser.add_argument('--url', dest='_url')
+    parser.add_argument('--verify', dest='_verify', type=bool)
     parser.add_argument('--format', dest='_format', default='table',
                         choices=['table', 'json'])
     parser.add_argument('--cache', dest='_cache', action='store_true',
@@ -926,4 +930,8 @@ def _main():
     _run_cli(client, args)
 
 if __name__ == '__main__':
-    _main()
+    try:
+        _main()
+    except ApiError as e:
+        print(e[1])
+
