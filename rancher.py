@@ -189,7 +189,7 @@ class Client(object):
             for k, v in headers.iteritems():
                 self._headers[k] = v
         if token is not None:
-            self._token = token
+            self.token = token
             self._headers['Authorization'] = 'Bearer ' + token
         self._access_key = access_key
         self._secret_key = secret_key
