@@ -7,10 +7,10 @@ with open('./requirements.txt') as r:
     requirements = [line.split('=', 1)[0] for line in r]
 
 setup(
-    name='rancher-client-python',
+    name='client-python',
     version='0.1.0',
     py_modules=['rancher'],
-    url='https://github.com/rancher/rancher-client-python',
+    url='https://github.com/rancher/client-python',
     license='MIT Style',
     description='Python client for the Rancher API',
     install_requires=requirements,
