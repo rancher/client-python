@@ -180,13 +180,14 @@ class ClientApiError(Exception):
 
 class Client(object):
     def __init__(self, access_key=None, secret_key=None, url=None, cache=False,
-                 cache_time=86400, strict=False, headers=HEADERS, token=None,
+                 cache_time=86400, strict=False, headers=None, token=None,
                  verify=True, **kw):
         if verify == 'False':
             verify = False
-        self._headers = HEADERS
-        for k, v in headers.iteritems():
-            self._headers[k] = v
+        self._headers = HEADERS.copy()
+        if headers is not None:
+            for k, v in headers.iteritems():
+                self._headers[k] = v
         if token is not None:
             self._token = token
             self._headers['Authorization'] = 'Bearer ' + token
