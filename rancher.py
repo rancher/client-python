@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # PYTHON_ARGCOMPLETE_OK
 
-from __future__ import print_function
-import six
+
 import re
 import requests
 import collections
@@ -10,6 +9,7 @@ import hashlib
 import os
 import json
 import time
+from functools import reduce
 try:
     import argcomplete
 except ImportError:
@@ -81,7 +81,7 @@ class RestObject:
         if not hasattr(self, 'type'):
             return str(self.__dict__)
         data = [('Type', 'Id', 'Name', 'Value')]
-        for k, v in six.iteritems(self):
+        for k, v in self.items():
             if self._is_public(k, v):
                 if v is None:
                     v = 'null'
@@ -102,7 +102,7 @@ class RestObject:
 
     def __repr__(self):
         data = {}
-        for k, v in six.iteritems(self.__dict__):
+        for k, v in self.__dict__.items():
             if self._is_public(k, v):
                 data[k] = v
         return repr(data)
@@ -115,6 +115,29 @@ class RestObject:
     def __iter__(self):
         if self._is_list():
             return iter(self.data)
+        else:
+            data = {}
+            for k, v in self.__dict__.items():
+                if self._is_public(k, v):
+                    data[k] = v
+            return iter(data.keys())
+
+    def __len__(self):
+        if self._is_list():
+            return len(self.data)
+        else:
+            data = {}
+            for k, v in self.__dict__.items():
+                if self._is_public(k, v):
+                    data[k] = v
+            return len(data)
+
+    def data_dict(self):
+        data = {}
+        for k, v in self.__dict__.items():
+                if self._is_public(k, v):
+                    data[k] = v
+        return data
 
 
 class Schema(object):
@@ -186,7 +209,7 @@ class Client(object):
             verify = False
         self._headers = HEADERS.copy()
         if headers is not None:
-            for k, v in headers.iteritems():
+            for k, v in headers.items():
                 self._headers[k] = v
         if token is not None:
             self.token = token
@@ -220,7 +243,7 @@ class Client(object):
         if isinstance(obj, dict):
             result = RestObject()
 
-            for k, v in six.iteritems(obj):
+            for k, v in obj.items():
                 setattr(result, k, self.object_hook(v))
 
             for link in ['next', 'prev']:
@@ -232,9 +255,9 @@ class Client(object):
                     pass
 
             if hasattr(result, 'type') and isinstance(getattr(result, 'type'),
-                                                      six.string_types):
+                                                      str):
                 if hasattr(result, 'links'):
-                    for link_name, link in six.iteritems(result.links):
+                    for link_name, link in result.links.items():
                         cb = lambda _link=link, **kw: self._get(_link,
                                                                 data=kw)
                         if hasattr(result, link_name):
@@ -243,7 +266,7 @@ class Client(object):
                             setattr(result, link_name, cb)
 
                 if hasattr(result, 'actions'):
-                    for link_name, link in six.iteritems(result.actions):
+                    for link_name, link in result.actions.items():
                         cb = lambda _link_name=link_name, _result=result, \
                             *args, **kw: self.action(_result, _link_name,
                                                      *args, **kw)
@@ -411,7 +434,7 @@ class Client(object):
             if hasattr(collection_filters, k):
                 return
 
-            for filter_name, filter_value in six.iteritems(collection_filters):
+            for filter_name, filter_value in collection_filters.items():
                 for m in filter_value.modifiers:
                     if k == '_'.join([filter_name, m]):
                         return
@@ -455,7 +478,7 @@ class Client(object):
     def _to_value(self, value):
         if isinstance(value, dict):
             ret = {}
-            for k, v in six.iteritems(value):
+            for k, v in value.items():
                 ret[k] = self._to_value(v)
             return ret
 
@@ -467,7 +490,7 @@ class Client(object):
 
         if isinstance(value, RestObject):
             ret = {}
-            for k, v in vars(value).iteritems():
+            for k, v in vars(value).items():
                 if not k.startswith('_') and \
                         not isinstance(v, RestObject) and not callable(v):
                     ret[k] = self._to_value(v)
@@ -489,10 +512,10 @@ class Client(object):
         for i in args:
             value = self._to_value(i)
             if isinstance(value, dict):
-                for k, v in six.iteritems(value):
+                for k, v in value.items():
                     ret[k] = v
 
-        for k, v in six.iteritems(kw):
+        for k, v in kw.items():
             ret[k] = self._to_value(v)
 
         return ret
@@ -514,7 +537,7 @@ class Client(object):
             ('create', 'collectionMethods', POST_METHOD, self.create)
         ]
 
-        for type_name, typ in six.iteritems(schema.types):
+        for type_name, typ in schema.types.items():
             for name_variant in self._type_name_variants(type_name):
                 for method_name, type_collection, test_method, m in bindings:
                     # double lambda for lexical binding hack, I'm sure there's
@@ -611,7 +634,7 @@ def _print_cli(client, obj):
 
 # {{{ http://code.activestate.com/recipes/267662/ (r7)
 try:
-    from cStringIO import StringIO
+    from io import StringIO
 except ImportError:
     from io import StringIO
 import operator
@@ -636,11 +659,11 @@ def indent(rows, hasHeader=False, headerChar='-', delim=' | ', justify='left',
         # closure for breaking logical rows to physical, using wrapfunc
         def rowWrapper(row):
                 newRows = [wrapfunc(item).split('\n') for item in row]
-                return [[substr or '' for substr in item] for item in map(None, *newRows)]  # NOQA
+                return [[substr or '' for substr in item] for item in list(*newRows)]  # NOQA
         # break each logical row into one or more physical ones
         logicalRows = [rowWrapper(row) for row in rows]
         # columns of physical rows
-        columns = map(None, *reduce(operator.add, logicalRows))
+        columns = list(*reduce(operator.add, logicalRows))
         # get the maximum of each column by the string length of its items
         maxWidths = [max([len(str(item)) for item in column])
                      for column in columns]
@@ -680,7 +703,7 @@ def from_env(prefix=PREFIX + '_', factory=Client, **kw):
 
 def _from_env(prefix=PREFIX + '_', factory=Client, **kw):
     result = dict(kw)
-    for k, v in six.iteritems(kw):
+    for k, v in kw.items():
         if v is not None:
             result[k] = v
         else:
@@ -723,7 +746,7 @@ def _general_args(help=True):
 def _list_args(subparsers, client, type, schema):
     help_msg = LIST[0:len(LIST)-1].capitalize() + ' ' + type
     subparser = subparsers.add_parser(LIST + type, help=help_msg)
-    for name, filter in six.iteritems(schema.collectionFilters):
+    for name, filter in schema.collectionFilters.items():
         subparser.add_argument('--' + name)
         for m in filter.modifiers:
             if m != 'eq':
@@ -758,7 +781,7 @@ def _generic_args(subparsers, field_key, type, schema,
     subparser = subparsers.add_parser(prefix, help=help_msg)
 
     if schema is not None:
-        for name, field in six.iteritems(schema):
+        for name, field in schema.items():
             if field.get(field_key) is True:
                 if field.get('type').startswith('array'):
                     subparser.add_argument('--' + name, nargs='*')
@@ -773,7 +796,7 @@ def _generic_args(subparsers, field_key, type, schema,
 def _full_args(client):
     parser = _general_args()
     subparsers = parser.add_subparsers(help='Sub-Command Help')
-    for type, schema in six.iteritems(client.schema.types):
+    for type, schema in client.schema.types.items():
         if schema.listable:
             subparser = _list_args(subparsers, client, type, schema)
             subparser.set_defaults(_action=LIST, _type=type)
@@ -793,7 +816,7 @@ def _full_args(client):
             subparser.set_defaults(_action=DELETE, _type=type)
 
         try:
-            for name, args in six.iteritems(schema.resourceActions):
+            for name, args in schema.resourceActions.items():
                 action_schema = None
                 try:
                     action_schema = client.schema.types[args.input]
@@ -867,7 +890,7 @@ def _run_cli(client, namespace):
 
 
 def _remove_none(args):
-    return dict(filter(lambda x: x[1] is not None, args.items()))
+    return dict([x for x in list(args.items()) if x[1] is not None])
 
 
 def _extract(namespace, *args):
@@ -907,7 +930,7 @@ def _cli_client(argv):
         JSON = True
 
     dict_args = {}
-    for k, v in vars(args).items():
+    for k, v in list(vars(args).items()):
         dict_args[k[1:]] = v
 
     prefix = _env_prefix(argv[0])
