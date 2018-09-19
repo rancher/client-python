@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+# !/usr/bin/env python
 # PYTHON_ARGCOMPLETE_OK
 
 
@@ -9,6 +9,8 @@ import hashlib
 import os
 import json
 import time
+import operator
+from io import StringIO
 from functools import reduce
 try:
     import argcomplete
@@ -21,6 +23,7 @@ def _prefix(cmd):
     for i in ['.pyc', '.py', '-cli', '-tool', '-util']:
         prefix = prefix.replace(i, '')
     return prefix.upper()
+
 
 PREFIX = _prefix(__file__)
 CACHE_DIR = '~/.' + PREFIX.lower()
@@ -135,8 +138,8 @@ class RestObject:
     def data_dict(self):
         data = {}
         for k, v in self.__dict__.items():
-                if self._is_public(k, v):
-                    data[k] = v
+            if self._is_public(k, v):
+                data[k] = v
         return data
 
 
@@ -153,28 +156,28 @@ class Schema(object):
             try:
                 if POST_METHOD in t.collectionMethods:
                     t.creatable = True
-            except:
+            except AttributeError:
                 pass
 
             t.updatable = False
             try:
                 if PUT_METHOD in t.resourceMethods:
                     t.updatable = True
-            except:
+            except AttributeError:
                 pass
 
             t.deletable = False
             try:
                 if DELETE_METHOD in t.resourceMethods:
                     t.deletable = True
-            except:
+            except AttributeError:
                 pass
 
             t.listable = False
             try:
                 if GET_METHOD in t.collectionMethods:
                     t.listable = True
-            except:
+            except AttributeError:
                 pass
 
             if not hasattr(t, 'collectionFilters'):
@@ -193,7 +196,7 @@ class ApiError(Exception):
         try:
             msg = '{} : {}\n\t{}'.format(obj.code, obj.message, obj)
             super(ApiError, self).__init__(self, msg)
-        except:
+        except Exception:
             super(ApiError, self).__init__(self, 'API Error')
 
 
@@ -258,22 +261,23 @@ class Client(object):
                                                       str):
                 if hasattr(result, 'links'):
                     for link_name, link in result.links.items():
-                        cb = lambda _link=link, **kw: self._get(_link,
-                                                                data=kw)
+                        def cb_link(_link=link, **kw):
+                            return self._get(_link, data=kw)
                         if hasattr(result, link_name):
-                            setattr(result, link_name + '_link', cb)
+                            setattr(result, link_name + '_link', cb_link)
                         else:
-                            setattr(result, link_name, cb)
+                            setattr(result, link_name, cb_link)
 
                 if hasattr(result, 'actions'):
                     for link_name, link in result.actions.items():
-                        cb = lambda _link_name=link_name, _result=result, \
-                            *args, **kw: self.action(_result, _link_name,
-                                                     *args, **kw)
+                        def cb_action(_link_name=link_name, _result=result,
+                                      *args, **kw):
+                            return self.action(_result, _link_name,
+                                               *args, **kw)
                         if hasattr(result, link_name):
-                            setattr(result, link_name + '_action', cb)
+                            setattr(result, link_name + '_action', cb_action)
                         else:
-                            setattr(result, link_name, cb)
+                            setattr(result, link_name, cb_action)
 
             return result
 
@@ -398,31 +402,29 @@ class Client(object):
 
     def _put_and_retry(self, url, *args, **kw):
         retries = kw.get('retries', 3)
-        last_error = None
         for i in range(retries):
             try:
                 return self._put(url, data=self._to_dict(*args, **kw))
             except ApiError as e:
+                if i == retries-1:
+                    raise e
                 if e.error.status == 409:
-                    last_error = e
                     time.sleep(.1)
                 else:
                     raise e
-        raise last_error
 
     def _post_and_retry(self, url, *args, **kw):
         retries = kw.get('retries', 3)
-        last_error = None
         for i in range(retries):
             try:
                 return self._post(url, data=self._to_dict(*args, **kw))
             except ApiError as e:
+                if i == retries-1:
+                    raise e
                 if e.error.status == 409:
-                    last_error = e
                     time.sleep(.1)
                 else:
                     raise e
-        raise last_error
 
     def _validate_list(self, type, **kw):
         if not self._strict:
@@ -542,11 +544,13 @@ class Client(object):
                 for method_name, type_collection, test_method, m in bindings:
                     # double lambda for lexical binding hack, I'm sure there's
                     # a better way to do this
-                    cb = lambda type_name=type_name, method=m: \
-                        lambda *args, **kw: method(type_name, *args, **kw)
+                    def cb_bind(type_name=type_name, method=m):
+                        def _cb(*args, **kw):
+                            return method(type_name, *args, **kw)
+                        return _cb
                     if test_method in getattr(typ, type_collection, []):
                         setattr(self, '_'.join([method_name, name_variant]),
-                                cb())
+                                cb_bind())
 
     def _get_schema_hash(self):
         h = hashlib.new('sha1')
@@ -615,7 +619,8 @@ class Client(object):
             obj = self.reload(obj)
             delta = time.time() - start
             if delta > timeout:
-                msg = 'Timeout waiting for [{}:{}] to be done after {} seconds'.format(obj.type, obj.id, delta)
+                msg = 'Timeout waiting for [{}:{}] to be done after {} seconds'
+                msg = msg.format(obj.type, obj.id, delta)
                 raise Exception(msg)
 
         return obj
@@ -632,58 +637,52 @@ def _print_cli(client, obj):
     else:
         print(obj)
 
+
 # {{{ http://code.activestate.com/recipes/267662/ (r7)
-try:
-    from io import StringIO
-except ImportError:
-    from io import StringIO
-import operator
-
-
 def indent(rows, hasHeader=False, headerChar='-', delim=' | ', justify='left',
            separateRows=False, prefix='', postfix='', wrapfunc=lambda x: x):
-        '''Indents a table by column.
-             - rows: A sequence of sequences of items, one sequence per row.
-             - hasHeader: True if the first row consists of the columns' names.
-             - headerChar: Character to be used for the row separator line
-                 (if hasHeader==True or separateRows==True).
-             - delim: The column delimiter.
-             - justify: Determines how are data justified in their column.
-                 Valid values are 'left','right' and 'center'.
-             - separateRows: True if rows are to be separated by a line
-                 of 'headerChar's.
-             - prefix: A string prepended to each printed row.
-             - postfix: A string appended to each printed row.
-             - wrapfunc: A function f(text) for wrapping text; each element in
-                 the table is first wrapped by this function.'''
-        # closure for breaking logical rows to physical, using wrapfunc
-        def rowWrapper(row):
-                newRows = [wrapfunc(item).split('\n') for item in row]
-                return [[substr or '' for substr in item] for item in list(*newRows)]  # NOQA
-        # break each logical row into one or more physical ones
-        logicalRows = [rowWrapper(row) for row in rows]
-        # columns of physical rows
-        columns = list(*reduce(operator.add, logicalRows))
-        # get the maximum of each column by the string length of its items
-        maxWidths = [max([len(str(item)) for item in column])
-                     for column in columns]
-        rowSeparator = headerChar * (len(prefix) + len(postfix) +
-                                     sum(maxWidths) +
-                                     len(delim)*(len(maxWidths)-1))
-        # select the appropriate justify method
-        justify = {'center': str.center, 'right': str.rjust, 'left': str.ljust}[justify.lower()]  # NOQA
-        output = StringIO()
-        if separateRows:
+    '''Indents a table by column.
+         - rows: A sequence of sequences of items, one sequence per row.
+         - hasHeader: True if the first row consists of the columns' names.
+         - headerChar: Character to be used for the row separator line
+             (if hasHeader==True or separateRows==True).
+         - delim: The column delimiter.
+         - justify: Determines how are data justified in their column.
+             Valid values are 'left','right' and 'center'.
+         - separateRows: True if rows are to be separated by a line
+             of 'headerChar's.
+         - prefix: A string prepended to each printed row.
+         - postfix: A string appended to each printed row.
+         - wrapfunc: A function f(text) for wrapping text; each element in
+             the table is first wrapped by this function.'''
+    # closure for breaking logical rows to physical, using wrapfunc
+    def rowWrapper(row):
+        newRows = [wrapfunc(item).split('\n') for item in row]
+        return [[substr or '' for substr in item] for item in list(*newRows)]  # NOQA
+    # break each logical row into one or more physical ones
+    logicalRows = [rowWrapper(row) for row in rows]
+    # columns of physical rows
+    columns = list(*reduce(operator.add, logicalRows))
+    # get the maximum of each column by the string length of its items
+    maxWidths = [max([len(str(item)) for item in column])
+                 for column in columns]
+    rowSeparator = headerChar * (len(prefix) + len(postfix) +
+                                 sum(maxWidths) +
+                                 len(delim)*(len(maxWidths)-1))
+    # select the appropriate justify method
+    justify = {'center': str.center, 'right': str.rjust, 'left': str.ljust}[justify.lower()]  # NOQA
+    output = StringIO()
+    if separateRows:
+        print(rowSeparator, file=output)
+    for physicalRows in logicalRows:
+        for row in physicalRows:
+            print(prefix
+                    + delim.join([justify(str(item), width) for (item, width) in zip(row, maxWidths)]) + postfix,  # NOQA
+                file=output)
+        if separateRows or hasHeader:
             print(rowSeparator, file=output)
-        for physicalRows in logicalRows:
-            for row in physicalRows:
-                print(prefix
-                        + delim.join([justify(str(item), width) for (item, width) in zip(row, maxWidths)]) + postfix,  # NOQA
-                    file=output)
-            if separateRows or hasHeader:
-                print(rowSeparator, file=output)
-                hasHeader = False
-        return output.getvalue()
+            hasHeader = False
+    return output.getvalue()
 # End {{{ http://code.activestate.com/recipes/267662/ (r7)
 
 
@@ -920,7 +919,7 @@ def _get_generic_vars(argv):
 
 def _cli_client(argv):
     generic_argv = _get_generic_vars(argv)
-    args, unknown = _general_args(help=False).parse_known_args(generic_argv)
+    args = _general_args(help=False).parse_known_args(generic_argv)[0]
 
     global TRIM
     TRIM = args._trim
@@ -953,9 +952,9 @@ def _main():
     args = _full_args(client).parse_args()
     _run_cli(client, args)
 
+
 if __name__ == '__main__':
     try:
         _main()
     except ApiError as e:
-        print(e[1])
-
+        print(e)
