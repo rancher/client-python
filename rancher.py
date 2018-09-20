@@ -69,16 +69,51 @@ def timed_url(fn):
     return wrapped
 
 
-class RestObject:
+class RestObject(object):
     def __init__(self):
         pass
 
-    @staticmethod
-    def _is_public(k, v):
-        return k not in ['links', 'actions', 'id', 'type'] and not callable(v)
-
     def __str__(self):
         return self.__repr__()
+
+    def __repr__(self):
+        data = {}
+        for k, v in self.__dict__.items():
+            if self._is_public(k, v):
+                data[k] = v
+        return repr(data)
+
+    def __getattr__(self, k):
+        if self._is_list() and k in LIST_METHODS:
+            return getattr(self.data, k)
+        return getattr(self.__dict__, k)
+
+    def __getitem__(self, key):
+        return self.__dict__[key]
+
+    def __iter__(self):
+        if self._is_list():
+            return iter(self.data)
+        else:
+            data = {}
+            for k, v in self.__dict__.items():
+                if self._is_public(k, v):
+                    data[k] = v
+            return iter(data.keys())
+
+    def __len__(self):
+        if self._is_list():
+            return len(self.data)
+        else:
+            data = {}
+            for k, v in self.__dict__.items():
+                if self._is_public(k, v):
+                    data[k] = v
+            return len(data)
+
+    @staticmethod
+    def _is_public(k, v):
+        return not callable(v)
 
     def _as_table(self):
         if not hasattr(self, 'type'):
@@ -102,38 +137,6 @@ class RestObject:
 
     def _is_list(self):
         return 'data' in self.__dict__ and isinstance(self.data, list)
-
-    def __repr__(self):
-        data = {}
-        for k, v in self.__dict__.items():
-            if self._is_public(k, v):
-                data[k] = v
-        return repr(data)
-
-    def __getattr__(self, k):
-        if self._is_list() and k in LIST_METHODS:
-            return getattr(self.data, k)
-        return getattr(self.__dict__, k)
-
-    def __iter__(self):
-        if self._is_list():
-            return iter(self.data)
-        else:
-            data = {}
-            for k, v in self.__dict__.items():
-                if self._is_public(k, v):
-                    data[k] = v
-            return iter(data.keys())
-
-    def __len__(self):
-        if self._is_list():
-            return len(self.data)
-        else:
-            data = {}
-            for k, v in self.__dict__.items():
-                if self._is_public(k, v):
-                    data[k] = v
-            return len(data)
 
     def data_dict(self):
         data = {}
@@ -658,11 +661,11 @@ def indent(rows, hasHeader=False, headerChar='-', delim=' | ', justify='left',
     # closure for breaking logical rows to physical, using wrapfunc
     def rowWrapper(row):
         newRows = [wrapfunc(item).split('\n') for item in row]
-        return [[substr or '' for substr in item] for item in list(*newRows)]  # NOQA
+        return [[substr or '' for substr in item] for item in list(newRows)]  # NOQA
     # break each logical row into one or more physical ones
     logicalRows = [rowWrapper(row) for row in rows]
     # columns of physical rows
-    columns = list(*reduce(operator.add, logicalRows))
+    columns = list(reduce(operator.add, logicalRows))
     # get the maximum of each column by the string length of its items
     maxWidths = [max([len(str(item)) for item in column])
                  for column in columns]
