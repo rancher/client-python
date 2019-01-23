@@ -79,6 +79,20 @@ client.delete(user)
 user = client.by_id_user('user-xyz123')
 widget.clusterRoleTemplateBindings()
 ```
+## Examples
+
+### Actions [Rancher API spec](https://github.com/rancher/api-spec/blob/master/specification.md#actions)
+From the spec 
+> "Actions perform an operation on a resource and (optionally) return a result.
+
+To perform the `setpodsecuritypolicytemplate` action on a project object these are the steps.
+
+```python
+project = api_client.create_project(name="test-project" clusterId="local")
+project.setpodsecuritypolicytemplate(podSecurityPolicyTemplateId="my-pspt")
+
+```
+
 
 # Contact
 For bugs, questions, comments, corrections, suggestions, etc., open an issue in
