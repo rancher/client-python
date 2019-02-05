@@ -83,7 +83,7 @@ widget.clusterRoleTemplateBindings()
 
 ### Actions [Rancher API spec](https://github.com/rancher/api-spec/blob/master/specification.md#actions)
 From the spec 
-> "Actions perform an operation on a resource and (optionally) return a result.
+> "Actions perform an operation on a resource and (optionally) return a result."
 
 To perform the `setpodsecuritypolicytemplate` action on a project object these are the steps.
 
