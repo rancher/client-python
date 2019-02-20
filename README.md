@@ -87,12 +87,23 @@ From the spec
 
 To perform the `setpodsecuritypolicytemplate` action on a project object these are the steps.
 
+This first method has built-in retry logic inside of `client.action()` when the error returned is 409
 ```python
-project = api_client.create_project(name="test-project" clusterId="local")
+#creates a project and handles cleanup
+project =  admin_pc.project 
+# create an api_client from a management context
+api_client = admin_mc.client
+# perform the action via the client api
+api_client.action(obj=project, action_name="setpodsecuritypolicytemplate",
+                    podSecurityTemplateId=pspt.id)
+```
+Or alternatively, performing the action from the project context (which does not have built-in retry logic)
+```python
+
+project = api_client.create_project(name="test-project", clusterId="local")
 project.setpodsecuritypolicytemplate(podSecurityPolicyTemplateId="my-pspt")
 
 ```
-
 
 # Contact
 For bugs, questions, comments, corrections, suggestions, etc., open an issue in
