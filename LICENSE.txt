@@ -1,5 +1,5 @@
 Copyright (c) 2013-2014 Go Daddy Operating Company, LLC
-Copyright (c) 2014-2018 Rancher Labs, Inc.
+Copyright (c) 2014-2019 Rancher Labs, Inc.
 
 Permission is hereby granted, free of charge, to any person obtaining a 
 copy of this software and associated documentation files (the "Software"), 
