@@ -126,7 +126,8 @@ class Schema(object):
             if t.type != 'schema':
                 continue
 
-            self.types[t.id] = t
+            # resource names in v1 API may contain '-' or '.'
+            self.types[t.id.replace(".", "_").replace("-", "")] = t
             t.creatable = False
             try:
                 if POST_METHOD in t.collectionMethods:
