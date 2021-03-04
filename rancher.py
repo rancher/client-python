@@ -40,6 +40,12 @@ HEADERS = {'Accept': 'application/json'}
 LIST_METHODS = {'__iter__': True, '__len__': True, '__getitem__': True}
 
 
+def convert_type_name(type):
+    if isinstance(type, str) is True:
+        return type.replace(".", "_").replace("-", "")
+    return type
+
+
 def echo(fn):
     def wrapped(*args, **kw):
         ret = fn(*args, **kw)
@@ -127,7 +133,7 @@ class Schema(object):
                 continue
 
             # resource names in v1 API may contain '-' or '.'
-            self.types[t.id.replace(".", "_").replace("-", "")] = t
+            self.types[convert_type_name(t.id)] = t
             t.creatable = False
             try:
                 if POST_METHOD in t.collectionMethods:
@@ -350,7 +356,8 @@ class Client(object):
 
     def by_id(self, type, id, **kw):
         id = str(id)
-        url = self.schema.types[type].links.collection
+        type_name = convert_type_name(type)
+        url = self.schema.types[type_name].links.collection
         if url.endswith('/'):
             url += id
         else:
@@ -364,7 +371,8 @@ class Client(object):
                 raise e
 
     def update_by_id(self, type, id, *args, **kw):
-        url = self.schema.types[type].links.collection
+        type_name = convert_type_name(type)
+        url = self.schema.types[type_name].links.collection
         if url.endswith('/'):
             url = url + id
         else:
@@ -406,7 +414,8 @@ class Client(object):
         if not self._strict:
             return
 
-        collection_filters = self.schema.types[type].collectionFilters
+        type_name = convert_type_name(type)
+        collection_filters = self.schema.types[type_name].collectionFilters
 
         for k in kw:
             if hasattr(collection_filters, k):
@@ -420,18 +429,20 @@ class Client(object):
             raise ClientApiError(k + ' is not searchable field')
 
     def list(self, type, **kw):
-        if type not in self.schema.types:
-            raise ClientApiError(type + ' is not a valid type')
+        type_name = convert_type_name(type)
+        if type_name not in self.schema.types:
+            raise ClientApiError(type_name + ' is not a valid type')
 
-        self._validate_list(type, **kw)
-        collection_url = self.schema.types[type].links.collection
+        self._validate_list(type_name, **kw)
+        collection_url = self.schema.types[type_name].links.collection
         return self._get(collection_url, data=self._to_dict(**kw))
 
     def reload(self, obj):
         return self.by_id(obj.type, obj.id)
 
     def create(self, type, *args, **kw):
-        collection_url = self.schema.types[type].links.collection
+        type_name = convert_type_name(type)
+        collection_url = self.schema.types[type_name].links.collection
         return self._post(collection_url, data=self._to_dict(*args, **kw))
 
     def delete(self, *args):

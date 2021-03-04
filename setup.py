@@ -2,7 +2,7 @@ import sys
 from setuptools import setup
 
 if sys.version_info.major != 3:
-    raise RuntimeError("This package requres Python 3+")
+    raise RuntimeError("This package requires Python 3+")
 
 # https://caremad.io/2013/07/setup-vs-requirement/
 
